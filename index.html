@@ -10,6 +10,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
   <div class="app-shell">
@@ -22,14 +23,14 @@
       </nav>
       <div class="sidebar-bottom">
         <div class="mini-profile"><div class="avatar" id="avatar">T</div><div><b id="sideUsername">Trader</b><small id="sideHandle">@trader</small></div></div>
-        <button class="ghost-btn" id="resetData">Reset local data</button>
+        <button class="ghost-btn" id="signOut">Sign out</button>
       </div>
     </aside>
 
     <main class="main">
       <header class="topbar">
         <div><p class="eyebrow">TRADING JOURNAL</p><h1 id="pageTitle">Calendar</h1></div>
-        <div class="top-actions"><span class="status-dot"></span><span>Saved locally</span><button class="icon-btn" id="profileBtn">⚙</button></div>
+        <div class="top-actions"><span class="status-dot"></span><span>Cloud saved</span><button class="icon-btn" id="profileBtn">⚙</button></div>
       </header>
 
       <section id="calendarTab" class="tab-panel active">
@@ -117,9 +118,38 @@
       <p class="eyebrow">YOUR ACCOUNT</p><h2>Profile</h2>
       <form id="profileForm">
         <label>Username<input id="usernameInput" maxlength="24" required></label>
-        <p class="helper">This demo stores your account locally in this browser. Connect a backend for real multi-user accounts.</p>
+        <p class="helper">Your username is public to other signed-in TradeTrack users. Your trade notes remain private.</p>
         <button class="primary full" type="submit">Save profile</button>
       </form>
+    </div>
+  </div>
+
+  <div class="modal-backdrop show" id="authBackdrop">
+    <div class="modal auth-modal">
+      <p class="eyebrow">TRADETRACK ACCOUNT</p>
+      <h2 id="authMode">Welcome back</h2>
+      <p class="helper">Sign in to keep your journal synced across devices.</p>
+      <form id="authForm" data-mode="login">
+        <label id="authUsernameWrap" style="display:none">Username<input id="authUsername" maxlength="24" autocomplete="username" placeholder="your_username"></label>
+        <label>Email<input id="authEmail" type="email" autocomplete="email" required placeholder="you@example.com"></label>
+        <label>Password<input id="authPassword" type="password" autocomplete="current-password" minlength="6" required placeholder="At least 6 characters"></label>
+        <button class="primary full" id="authSubmit" type="submit">Sign in</button>
+      </form>
+      <div id="authMessage" class="form-message"></div>
+      <div class="auth-switch"><button class="ghost-btn" id="showSignup" type="button">Create an account</button><button class="ghost-btn" id="showLogin" type="button">I already have an account</button></div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="performanceModal">
+    <div class="modal">
+      <button class="modal-close" id="closePerformance">×</button>
+      <p class="eyebrow">FRIEND PERFORMANCE</p><h2 id="performanceTitle">@friend</h2>
+      <div class="summary-grid" style="margin-top:18px">
+        <div class="metric"><span>Total P/L</span><strong id="friendPL">$0.00</strong></div>
+        <div class="metric"><span>Win rate</span><strong id="friendWR">0%</strong></div>
+        <div class="metric"><span>Total trades</span><strong id="friendTrades">0</strong></div>
+      </div>
+      <p class="helper" style="margin-top:16px">Only overall performance is shown. Individual trade reasons and entries stay private.</p>
     </div>
   </div>
 
