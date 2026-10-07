@@ -130,7 +130,7 @@ function renderAll(){renderSummary();renderCalendar();renderAnalytics();renderFr
 $("#authForm").onsubmit=async e=>{e.preventDefault();if(!supabaseReady)return;const mode=e.currentTarget.dataset.mode,email=$("#authEmail").value.trim(),password=$("#authPassword").value,username=$("#authUsername").value.trim().replace(/^@/,"");$("#authSubmit").disabled=true;authMessage("Working...");let result;if(mode==="signup"){if(!/^[A-Za-z0-9_]{3,24}$/.test(username)){authMessage("Username must be 3–24 letters, numbers, or underscores.",true);$("#authSubmit").disabled=false;return;}result=await supabaseClient.auth.signUp({email,password,options:{data:{username}}});}else result=await supabaseClient.auth.signInWithPassword({email,password});$("#authSubmit").disabled=false;if(result.error){authMessage(result.error.message,true);return;}if(mode==="signup"&&!result.data.session)authMessage("Account created. Check your email to confirm it, then sign in.");else authMessage("");};
 $("#showSignup").onclick=()=>setAuthMode("signup");$("#showLogin").onclick=()=>setAuthMode("login");
 $("#signOut").onclick=async()=>{await supabaseClient.auth.signOut();};
-$("#closeAuth").onclick=()=>{};
+
 
 document.querySelectorAll(".nav-btn").forEach(b=>b.onclick=()=>setTab(b.dataset.tab));
 document.querySelectorAll(".period").forEach(b=>b.onclick=()=>{period=b.dataset.period;document.querySelectorAll(".period").forEach(x=>x.classList.remove("active"));b.classList.add("active");renderCalendar();});
