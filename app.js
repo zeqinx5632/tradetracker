@@ -2,6 +2,7 @@
    Replace the two CONFIG values with your Supabase project's publishable values.
    NEVER put a Supabase secret/service_role key here. */
 const CONFIG = {
+   
   supabaseUrl: "https://nxjkyoizshjpbvpmmavd.supabase.co",
   supabasePublishableKey: "sb_publishable_gS1WTzXGxhqSA_Nj0hkzIA_CdEQmRzM"
 };
