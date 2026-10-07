@@ -2,13 +2,18 @@
    Replace the two CONFIG values with your Supabase project's publishable values.
    NEVER put a Supabase secret/service_role key here. */
 const CONFIG = {
-   
-  supabaseUrl: "https://nxjkyoizshjpbvpmmavd.supabase.co/",
-  supabasePublishableKey: "sb_publishable_L5GLKMVca3caX7arp8wN3Q_s58XY6QD"
+  supabaseUrl: "https://nxjkyoizshjpbvpmmavd.supabase.co",
+  supabasePublishableKey: "sb_publishable_gS1WTzXGxhqSA_Nj0hkzIA_CdEQmRzM"
 };
 
-const supabaseReady = CONFIG.supabaseUrl.startsWith("https://") && !CONFIG.supabasePublishableKey.startsWith("YOUR_");
-const supabaseClient = supabaseReady ? window.supabase.createClient(CONFIG.supabaseUrl, CONFIG.supabasePublishableKey) : null;
+const supabaseReady = Boolean(
+  window.supabase &&
+  CONFIG.supabaseUrl.startsWith("https://") &&
+  CONFIG.supabasePublishableKey.startsWith("sb_")
+);
+const supabaseClient = supabaseReady
+  ? window.supabase.createClient(CONFIG.supabaseUrl, CONFIG.supabasePublishableKey)
+  : null;
 
 let user = null;
 let profile = null;
@@ -42,13 +47,13 @@ function authMessage(msg, error=false){ $("#authMessage").textContent=msg; $("#a
 function setAuthMode(mode){
   $("#authMode").textContent=mode==="signup"?"Create your account":"Welcome back";
   $("#authSubmit").textContent=mode==="signup"?"Create account":"Sign in";
-  $("#authUsernameWrap").style.display="block";
-  $("#authUsername").placeholder=mode==="signup"?"Choose a username":"Your username";
+  $("#authUsernameWrap").style.display=mode==="signup"?"block":"none";
   $("#authForm").dataset.mode=mode;
   authMessage("");
 }
 
 async function start(){
+  setAuthMode("login");
   if(!supabaseReady){ showAuth(true); authMessage("Connect your Supabase URL and publishable key in app.js before using the site.",true); return; }
   const {data:{session}}=await supabaseClient.auth.getSession();
   if(session) await loadUser(session.user); else showAuth(true);
@@ -129,31 +134,74 @@ async function deleteTrade(id){if(!confirm("Delete this trade?"))return;const {e
 function setTab(tab){document.querySelectorAll(".nav-btn").forEach(b=>b.classList.toggle("active",b.dataset.tab===tab));document.querySelectorAll(".tab-panel").forEach(p=>p.classList.remove("active"));$("#"+tab+"Tab").classList.add("active");$("#pageTitle").textContent=tab[0].toUpperCase()+tab.slice(1);if(tab==="analytics")renderAnalytics();if(tab==="friends")renderFriends();}
 function renderAll(){renderSummary();renderCalendar();renderAnalytics();renderFriends();}
 
+function usernameEmail(username){
+  // Supabase Auth requires an email-shaped identifier.
+  // Users still only see and enter their TradeTrack username.
+  return `${username.toLowerCase()}@tradetrack.local`;
+}
+
 $("#authForm").onsubmit=async e=>{
   e.preventDefault();
-  if(!supabaseReady){authMessage("Supabase is not configured in app.js.",true);return;}
-  const mode=e.currentTarget.dataset.mode;
-  const username=$("#authUsername").value.trim().replace(/^@/,"").toLowerCase();
-  const password=$("#authPassword").value;
-  if(!/^[A-Za-z0-9_]{3,24}$/.test(username)){authMessage("Username must be 3–24 letters, numbers, or underscores.",true);return;}
-  if(password.length<6){authMessage("Password must be at least 6 characters.",true);return;}
-  $("#authSubmit").disabled=true;
-  authMessage("Working...");
-  const email=username+"@tradetrack.local";
-  let result;
-  if(mode==="signup"){
-    result=await supabaseClient.auth.signUp({email,password,options:{data:{username}}});
-  }else{
-    result=await supabaseClient.auth.signInWithPassword({email,password});
-  }
-  $("#authSubmit").disabled=false;
-  if(result.error){console.error("TradeTrack auth error:",result.error);authMessage(result.error.message,true);return;}
-  if(mode==="signup"&&!result.data.session){
-    authMessage("Account created, but Supabase is still requiring confirmation. Turn off Confirm email in Supabase Authentication settings, then try again.",true);
+  if(!supabaseReady){
+    authMessage("Supabase is not connected. Please use the app.js file supplied with TradeTrack.",true);
     return;
   }
+
+  const mode=e.currentTarget.dataset.mode || "login";
+  const username=$("#authUsername").value.trim().replace(/^@/,"").toLowerCase();
+  const password=$("#authPassword").value;
+
+  if(!/^[A-Za-z0-9_]{3,24}$/.test(username)){
+    authMessage("Username must be 3–24 letters, numbers, or underscores.",true);
+    return;
+  }
+  if(password.length < 6){
+    authMessage("Password must be at least 6 characters.",true);
+    return;
+  }
+
+  $("#authSubmit").disabled=true;
+  authMessage(mode === "signup" ? "Creating your account..." : "Signing in...");
+
+  let result;
+  try {
+    const email=usernameEmail(username);
+    if(mode === "signup") {
+      result=await supabaseClient.auth.signUp({
+        email,
+        password,
+        options:{data:{username}}
+      });
+    } else {
+      result=await supabaseClient.auth.signInWithPassword({email,password});
+    }
+  } catch(err) {
+    console.error(err);
+    authMessage("Could not connect to Supabase. Please try again.",true);
+    $("#authSubmit").disabled=false;
+    return;
+  }
+
+  $("#authSubmit").disabled=false;
+
+  if(result.error){
+    console.error("Supabase auth error:",result.error);
+    authMessage(result.error.message,true);
+    return;
+  }
+
+  if(mode === "signup" && !result.data.session){
+    authMessage("Your account was created, but email confirmation is enabled in Supabase. Turn off email confirmation in Supabase Authentication settings, then sign in.",true);
+    return;
+  }
+
   authMessage("");
 };
+
+$("#showSignup").onclick=()=>setAuthMode("signup");
+$("#showLogin").onclick=()=>setAuthMode("login");
+
+$("#signOut").onclick=async()=>{if(supabaseClient) await supabaseClient.auth.signOut();};
 
 document.querySelectorAll(".nav-btn").forEach(b=>b.onclick=()=>setTab(b.dataset.tab));
 document.querySelectorAll(".period").forEach(b=>b.onclick=()=>{period=b.dataset.period;document.querySelectorAll(".period").forEach(x=>x.classList.remove("active"));b.classList.add("active");renderCalendar();});
