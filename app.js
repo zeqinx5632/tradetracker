@@ -2,7 +2,7 @@
    Replace the two CONFIG values with your Supabase project's publishable values.
    NEVER put a Supabase secret/service_role key here. */
 const CONFIG = {
-  supabaseUrl: "sb_publishable_gS1WTzXGxhqSA_Nj0hkzIA_CdEQmRzM",
+  supabaseUrl: "YOUR_SUPABASE_URL",
   supabasePublishableKey: "YOUR_SUPABASE_PUBLISHABLE_KEY"
 };
 
@@ -41,7 +41,8 @@ function authMessage(msg, error=false){ $("#authMessage").textContent=msg; $("#a
 function setAuthMode(mode){
   $("#authMode").textContent=mode==="signup"?"Create your account":"Welcome back";
   $("#authSubmit").textContent=mode==="signup"?"Create account":"Sign in";
-  $("#authUsernameWrap").style.display=mode==="signup"?"block":"none";
+  $("#authUsernameWrap").style.display="block";
+  $("#authUsername").placeholder=mode==="signup"?"Choose a username":"Your username";
   $("#authForm").dataset.mode=mode;
   authMessage("");
 }
@@ -127,10 +128,31 @@ async function deleteTrade(id){if(!confirm("Delete this trade?"))return;const {e
 function setTab(tab){document.querySelectorAll(".nav-btn").forEach(b=>b.classList.toggle("active",b.dataset.tab===tab));document.querySelectorAll(".tab-panel").forEach(p=>p.classList.remove("active"));$("#"+tab+"Tab").classList.add("active");$("#pageTitle").textContent=tab[0].toUpperCase()+tab.slice(1);if(tab==="analytics")renderAnalytics();if(tab==="friends")renderFriends();}
 function renderAll(){renderSummary();renderCalendar();renderAnalytics();renderFriends();}
 
-$("#authForm").onsubmit=async e=>{e.preventDefault();if(!supabaseReady)return;const mode=e.currentTarget.dataset.mode,email=$("#authEmail").value.trim(),password=$("#authPassword").value,username=$("#authUsername").value.trim().replace(/^@/,"");$("#authSubmit").disabled=true;authMessage("Working...");let result;if(mode==="signup"){if(!/^[A-Za-z0-9_]{3,24}$/.test(username)){authMessage("Username must be 3–24 letters, numbers, or underscores.",true);$("#authSubmit").disabled=false;return;}result=await supabaseClient.auth.signUp({email,password,options:{data:{username}}});}else result=await supabaseClient.auth.signInWithPassword({email,password});$("#authSubmit").disabled=false;if(result.error){authMessage(result.error.message,true);return;}if(mode==="signup"&&!result.data.session)authMessage("Account created. Check your email to confirm it, then sign in.");else authMessage("");};
-$("#showSignup").onclick=()=>setAuthMode("signup");$("#showLogin").onclick=()=>setAuthMode("login");
-$("#signOut").onclick=async()=>{await supabaseClient.auth.signOut();};
-$("#closeAuth").onclick=()=>{};
+$("#authForm").onsubmit=async e=>{
+  e.preventDefault();
+  if(!supabaseReady){authMessage("Supabase is not configured in app.js.",true);return;}
+  const mode=e.currentTarget.dataset.mode;
+  const username=$("#authUsername").value.trim().replace(/^@/,"").toLowerCase();
+  const password=$("#authPassword").value;
+  if(!/^[A-Za-z0-9_]{3,24}$/.test(username)){authMessage("Username must be 3–24 letters, numbers, or underscores.",true);return;}
+  if(password.length<6){authMessage("Password must be at least 6 characters.",true);return;}
+  $("#authSubmit").disabled=true;
+  authMessage("Working...");
+  const email=username+"@tradetrack.local";
+  let result;
+  if(mode==="signup"){
+    result=await supabaseClient.auth.signUp({email,password,options:{data:{username}}});
+  }else{
+    result=await supabaseClient.auth.signInWithPassword({email,password});
+  }
+  $("#authSubmit").disabled=false;
+  if(result.error){console.error("TradeTrack auth error:",result.error);authMessage(result.error.message,true);return;}
+  if(mode==="signup"&&!result.data.session){
+    authMessage("Account created, but Supabase is still requiring confirmation. Turn off Confirm email in Supabase Authentication settings, then try again.",true);
+    return;
+  }
+  authMessage("");
+};
 
 document.querySelectorAll(".nav-btn").forEach(b=>b.onclick=()=>setTab(b.dataset.tab));
 document.querySelectorAll(".period").forEach(b=>b.onclick=()=>{period=b.dataset.period;document.querySelectorAll(".period").forEach(x=>x.classList.remove("active"));b.classList.add("active");renderCalendar();});
@@ -144,6 +166,6 @@ $("#profileForm").onsubmit=async e=>{e.preventDefault();const username=$("#usern
 $("#shareToggle").onchange=async e=>{const {error}=await supabaseClient.from("profiles").update({share_performance:e.target.checked}).eq("id",user.id);if(error){alert(error.message);e.target.checked=profile.share_performance;return;}profile.share_performance=e.target.checked;await loadFriends();renderFriends();};
 $("#sendFriend").onclick=async()=>{const input=$("#friendInput"),u=input.value.trim().replace(/^@/,""),msg=$("#friendMessage");if(!u){msg.textContent="Enter a username.";return;}const target=profiles.find(p=>p.username.toLowerCase()===u.toLowerCase());if(!target){msg.textContent="That username was not found.";return;}if(target.id===user.id){msg.textContent="You can't add yourself.";return;}const existing=friendships.find(f=>(f.requester_id===user.id&&f.addressee_id===target.id)||(f.addressee_id===user.id&&f.requester_id===target.id));if(existing){msg.textContent=existing.status==="accepted"?"You are already friends.":"A request already exists.";return;}const {error}=await supabaseClient.from("friendships").insert({requester_id:user.id,addressee_id:target.id,status:"pending"});if(error){msg.textContent=error.message;return;}input.value="";msg.textContent=`Request sent to @${target.username}.`;await loadFriends();renderFriends();};
 $("#friendsList").onclick=async e=>{const accept=e.target.dataset.accept,decline=e.target.dataset.decline,perf=e.target.dataset.performance;if(perf){showFriendPerformance(perf);return;}const id=accept||decline;if(!id)return;const status=accept?"accepted":"declined";const {error}=await supabaseClient.from("friendships").update({status,updated_at:new Date().toISOString()}).eq("id",id);if(error){alert(error.message);return;}await loadFriends();renderFriends();};
-$("#closePerformance").onclick=()=>$("#performanceModal").classList.remove("show");$("#chartMetric").onchange=renderAnalytics;$("#signOutTop").onclick=async()=>supabaseClient.auth.signOut();
+$("#closePerformance").onclick=()=>$("#performanceModal").classList.remove("show");$("#chartMetric").onchange=renderAnalytics;
 
 start();
