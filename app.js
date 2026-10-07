@@ -3,7 +3,7 @@
    NEVER put a Supabase secret/service_role key here. */
 const CONFIG = {
   supabaseUrl: "https://nxjkyoizshjpbvpmmavd.supabase.co",
-  supabasePublishableKey: "sb_publishable_gS1WTzXGxhqSA_Nj0hkzIA_CdEQmRzM"
+  supabasePublishableKey: "sb_publishable_L5GLKMVca3caX7arp8wN3Q_s58XY6QD"
 };
 
 const supabaseReady = Boolean(
