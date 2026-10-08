@@ -42,14 +42,17 @@ function setAuthMode(mode){
   const signup=mode==="signup";
   $("#authMode").textContent=signup?"Create your account":"Welcome back";
   $("#authSubmit").textContent=signup?"Create account":"Sign in";
-  $("#authUsernameWrap").style.display=signup?"block":"none";
-  $("#authUsername").required=signup;
-  $("#authUsername").disabled=!signup;
+  // Username is required on both screens, so keep it visible and enabled.
+  $("#authUsernameWrap").style.display="block";
+  $("#authUsername").required=true;
+  $("#authUsername").disabled=false;
+  $("#authPassword").autocomplete=signup?"new-password":"current-password";
   $("#authForm").dataset.mode=mode;
   authMessage("");
 }
 
 async function start(){
+  setAuthMode("login");
   if(!supabaseReady){ showAuth(true); authMessage("Connect your Supabase URL and publishable key in app.js before using the site.",true); return; }
   const {data:{session}}=await supabaseClient.auth.getSession();
   if(session) await loadUser(session.user); else showAuth(true);
@@ -127,38 +130,41 @@ function showFriendPerformance(friendId){
 async function saveTrade(){const pnl=Number($("#plInput").value),reason=$("#reasonInput").value.trim();if(!Number.isFinite(pnl)||!reason)return;const {error}=await supabaseClient.from("trades").insert({user_id:user.id,trade_date:selectedDate,pnl,reason});if(error){alert(error.message);return;}$("#tradeModal").classList.remove("show");await loadTrades();renderAll();}
 async function deleteTrade(id){if(!confirm("Delete this trade?"))return;const {error}=await supabaseClient.from("trades").delete().eq("id",id);if(error){alert(error.message);return;}await loadTrades();renderAll();}
 
-function setTab(tab){document.querySelectorAll(".nav-btn").forEach(b=>b.classList.toggle("active",b.dataset.tab===tab));document.querySelectorAll(".tab-panel").forEach(p=>p.classList.remove("active"));$("#"+tab+"Tab").classList.add("active");$("#pageTitle").textContent=tab[0].toUpperCase()+tab.slice(1);if(tab==="analytics")renderAnalytics();if(tab==="friends")renderFriends();}
+function setTab(tab){document.querySelectorAll(".nav-btn").forEach(b=>b.classList.toggle("active",b.dataset.tab===tab));document.querySelectorAll(".tab-panel").forEach(p=>p.classList.remove("active"));$("#"+tab+"Tab").classList.add("active");$("#pageTitle").textContent=tab[0].toUpperCase()+tab.slice(1);if(tab==="analytics")renderAnalytics();if(tab==="friends"){loadFriends().then(renderFriends);}}
 function renderAll(){renderSummary();renderCalendar();renderAnalytics();renderFriends();}
+
+function usernameEmail(username){
+  return `${username.toLowerCase()}@tradetrack.local`;
+}
 
 $("#authForm").onsubmit=async e=>{
   e.preventDefault();
-  if(!supabaseReady)return;
-  const mode=e.currentTarget.dataset.mode;
+  if(!supabaseReady){authMessage("Supabase is not configured in app.js.",true);return;}
+  const mode=e.currentTarget.dataset.mode||"login";
+  const username=$("#authUsername").value.trim().replace(/^@/,"").toLowerCase();
   const password=$("#authPassword").value;
-  const username=$("#authUsername").value.trim().replace(/^@/,"");
-  if(!/^[A-Za-z0-9_]{3,24}$/.test(username)){authMessage("Username must be 3–24 letters, numbers, or underscores.",true);return;}
+  if(!/^[a-z0-9_]{3,24}$/.test(username)){authMessage("Username must be 3–24 letters, numbers, or underscores.",true);return;}
   if(password.length<6){authMessage("Password must be at least 6 characters.",true);return;}
-  const email=`${username.toLowerCase()}@tradetrack.local`;
+  const email=usernameEmail(username);
   $("#authSubmit").disabled=true;
-  authMessage(mode==="signup"?"Creating your account...":"Signing in...");
-  let result;
+  authMessage(mode==="signup"?"Creating your account…":"Signing in…");
   try{
-    result=mode==="signup"
+    const result=mode==="signup"
       ? await supabaseClient.auth.signUp({email,password,options:{data:{username}}})
       : await supabaseClient.auth.signInWithPassword({email,password});
-  }catch(err){
-    console.error(err);
-    authMessage(err.message||"Something went wrong.",true);
-    $("#authSubmit").disabled=false;
-    return;
-  }
-  $("#authSubmit").disabled=false;
-  if(result.error){console.error("Supabase auth error:",result.error);authMessage(result.error.message,true);return;}
-  if(mode==="signup"&&!result.data.session){authMessage("Account created, but Supabase is requiring email confirmation. Turn off Confirm email in Supabase Authentication settings.",true);return;}
-  authMessage("");
+    if(result.error){console.error("Supabase auth error:",result.error);authMessage(result.error.message,true);return;}
+    if(mode==="signup"&&!result.data.session){
+      authMessage("Account created, but email confirmation is still enabled in Supabase. Turn off Confirm email in Authentication settings, then try creating the account again.",true);
+      return;
+    }
+    // The auth state listener loads the new session and opens the journal.
+    authMessage("");
+  }catch(err){console.error("Auth request failed:",err);authMessage(err.message||"Could not connect to Supabase. Please try again.",true);}
+  finally{$("#authSubmit").disabled=false;}
 };
-$("#showSignup").onclick=()=>setAuthMode("signup");$("#showLogin").onclick=()=>setAuthMode("login");
-$("#signOut").onclick=async()=>{await supabaseClient.auth.signOut();};
+$("#showSignup").onclick=()=>setAuthMode("signup");
+$("#showLogin").onclick=()=>setAuthMode("login");
+$("#signOut").onclick=async()=>{if(supabaseClient) await supabaseClient.auth.signOut();};
 
 document.querySelectorAll(".nav-btn").forEach(b=>b.onclick=()=>setTab(b.dataset.tab));
 document.querySelectorAll(".period").forEach(b=>b.onclick=()=>{period=b.dataset.period;document.querySelectorAll(".period").forEach(x=>x.classList.remove("active"));b.classList.add("active");renderCalendar();});
@@ -173,19 +179,20 @@ $("#shareToggle").onchange=async e=>{const {error}=await supabaseClient.from("pr
 $("#sendFriend").onclick=async()=>{
   const input=$("#friendInput"),u=input.value.trim().replace(/^@/,""),msg=$("#friendMessage");
   if(!u){msg.textContent="Enter a username.";return;}
-  msg.textContent="Looking for @"+u+"...";
-  const {data:target,error:lookupError}=await supabaseClient.from("profiles").select("id,username,share_performance").ilike("username",u).maybeSingle();
-  if(lookupError){console.error("Friend lookup error:",lookupError);msg.textContent="Could not search usernames. Check your Supabase profiles permissions.";return;}
-  if(!target){msg.textContent="That username was not found.";return;}
+  msg.textContent="Searching for @"+u+"…";
+  const {data:target,error:lookupError}=await supabaseClient.from("profiles")
+    .select("id,username,share_performance").ilike("username",u).maybeSingle();
+  if(lookupError){console.error("Friend lookup error:",lookupError);msg.textContent="Couldn't search usernames. Check the profiles SELECT policy in Supabase.";return;}
+  if(!target){msg.textContent="That username was not found. Check the spelling and try again.";return;}
   if(target.id===user.id){msg.textContent="You can't add yourself.";return;}
   const existing=friendships.find(f=>(f.requester_id===user.id&&f.addressee_id===target.id)||(f.addressee_id===user.id&&f.requester_id===target.id));
-  if(existing){msg.textContent=existing.status==="accepted"?"You are already friends.":"A request already exists.";return;}
+  if(existing){msg.textContent=existing.status==="accepted"?"You are already friends.":existing.status==="pending"?"A request already exists.":"A previous request was declined. Ask the other person to send you a request.";return;}
   const {error}=await supabaseClient.from("friendships").insert({requester_id:user.id,addressee_id:target.id,status:"pending"});
-  if(error){console.error(error);msg.textContent=error.message;return;}
+  if(error){console.error("Friend request insert error:",error);msg.textContent=error.message;return;}
   input.value="";msg.textContent=`Request sent to @${target.username}.`;
   await loadFriends();renderFriends();
 };
 $("#friendsList").onclick=async e=>{const accept=e.target.dataset.accept,decline=e.target.dataset.decline,perf=e.target.dataset.performance;if(perf){showFriendPerformance(perf);return;}const id=accept||decline;if(!id)return;const status=accept?"accepted":"declined";const {error}=await supabaseClient.from("friendships").update({status,updated_at:new Date().toISOString()}).eq("id",id);if(error){alert(error.message);return;}await loadFriends();renderFriends();};
-$("#closePerformance").onclick=()=>$("#performanceModal").classList.remove("show");$("#chartMetric").onchange=renderAnalytics;$("#signOutTop").onclick=async()=>supabaseClient.auth.signOut();
+$("#closePerformance").onclick=()=>$("#performanceModal").classList.remove("show");$("#chartMetric").onchange=renderAnalytics;
 
 start();
