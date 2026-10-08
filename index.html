@@ -15,7 +15,7 @@
 <body>
   <div class="app-shell">
     <aside class="sidebar">
-      <div class="brand"><div class="brand-mark">T</div><div><strong>TradeTrack</strong><span>Trading journal</span></div></div>
+      <div class="brand"><div class="brand-mark" aria-hidden="true"><svg viewBox="0 0 40 40" role="img"><defs><linearGradient id="ttLogoGradient" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#9b8cff"/><stop offset="1" stop-color="#35e0b0"/></linearGradient></defs><path d="M20 3.5 34 11.5v17L20 36.5 6 28.5v-17Z" fill="none" stroke="url(#ttLogoGradient)" stroke-width="2.4"/><path d="M11 13h18M20 13v15M14 19h12" fill="none" stroke="url(#ttLogoGradient)" stroke-width="3.1" stroke-linecap="round"/><path d="m12 25 5-5 4 3 7-8" fill="none" stroke="#f2f5ff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></div><div><strong>TradeTrack</strong><span>Trading journal</span></div></div>
       <nav>
         <button class="nav-btn active" data-tab="calendar"><span>▦</span> Calendar</button>
         <button class="nav-btn" data-tab="analytics"><span>◒</span> Analytics</button>
@@ -48,9 +48,9 @@
           </div>
           <div class="calendar-toolbar">
             <div class="period-switcher">
-              <button class="period active" data-period="day">1 Day</button>
+              <button class="period" data-period="day">1 Day</button>
               <button class="period" data-period="week">1 Week</button>
-              <button class="period" data-period="month">1 Month</button>
+              <button class="period active" data-period="month">1 Month</button>
               <button class="period" data-period="year">1 Year</button>
               <button class="period" data-period="all">All Time</button>
             </div>
@@ -70,7 +70,11 @@
           <div><p class="eyebrow">PERFORMANCE</p><h2>Know your numbers.</h2></div>
           <select id="chartMetric"><option value="pl">Profit / Loss</option><option value="winrate">Win Rate %</option><option value="trades">Total Trades</option></select>
         </div>
-        <div class="card chart-card"><canvas id="performanceChart"></canvas></div>
+        <p id="analyticsScope" class="eyebrow analytics-scope">Funded Trades stats</p>
+        <div class="analytics-charts">
+          <div class="card chart-card"><div class="section-head"><div><p class="eyebrow">PAPER TRADING</p><h3>Paper performance</h3></div></div><div class="chart-canvas-wrap"><canvas id="paperPerformanceChart"></canvas></div></div>
+          <div class="card chart-card"><div class="section-head"><div><p class="eyebrow">FUNDED TRADES</p><h3>Funded performance</h3></div></div><div class="chart-canvas-wrap"><canvas id="fundedPerformanceChart"></canvas></div></div>
+        </div>
         <div class="analytics-grid">
           <div class="card insight"><span>Average trade</span><strong id="avgTrade">$0.00</strong><small>Net P/L ÷ total trades</small></div>
           <div class="card insight"><span>Winning trades</span><strong id="wins">0</strong><small id="winsPct">0% of trades</small></div>

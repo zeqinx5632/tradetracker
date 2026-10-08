@@ -14,11 +14,12 @@ let profile = null;
 let trades = [];
 let friendships = [];
 let profiles = [];
-let chart;
+let paperChart;
+let fundedChart;
 let selectedDate = null;
 let viewDate = new Date();
 let period = "month";
-let activeCalendar = "funded";
+let activeCalendar = (() => { try { return localStorage.getItem("tradetrack-active-calendar") === "paper" ? "paper" : "funded"; } catch { return "funded"; } })();
 
 const $ = (s) => document.querySelector(s);
 const money = (n) => `${n < 0 ? "-" : ""}$${Math.abs(Number(n)).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}`;
@@ -89,10 +90,10 @@ function currentFriendIds(){return friendships.filter(f=>f.status==="accepted").
 function ownTrades(){return trades.filter(t=>t.user_id===user.id);}
 
 function renderSummary(){
-  const s=stats(ownTrades());
+  const s=stats(calendarTrades());
   $("#totalPL").textContent=money(s.total); $("#totalPL").className=s.total>=0?"positive":"negative";
-  $("#winRate").textContent=`${s.winRate.toFixed(1)}%`; $("#winRateSub").textContent=`${s.wins.length} wins / ${s.ts.length} trades`; $("#totalTrades").textContent=s.ts.length;
-  const byDate=groupedOwn(); let best=null; Object.entries(byDate).forEach(([d,a])=>{const v=a.reduce((x,t)=>x+Number(t.pnl),0);if(!best||v>best.v)best={d,v};});
+  $("#winRate").textContent=`${s.winRate.toFixed(1)}%`; $("#winRateSub").textContent=`${s.wins.length} wins / ${s.ts.length} trades`; $("#totalTrades").textContent=s.ts.length; $("#totalTrades").nextElementSibling.textContent=activeCalendar==="paper"?"Paper Trading":"Funded Trades";
+  const byDate={}; calendarTrades().forEach(t=>(byDate[t.trade_date]??=[]).push(t)); let best=null; Object.entries(byDate).forEach(([d,a])=>{const v=a.reduce((x,t)=>x+Number(t.pnl),0);if(!best||v>best.v)best={d,v};});
   $("#bestDay").textContent=best?money(best.v):"$0.00"; $("#bestDayDate").textContent=best?parseKey(best.d).toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"}):"No trades yet";
 }
 function groupedOwn(){const o={};ownTrades().forEach(t=>(o[t.trade_date]??=[]).push(t));return o;}
@@ -100,6 +101,8 @@ function calendarTrades(){return ownTrades().filter(t=>(t.trade_type||"funded")=
 function groupedCalendar(){const o={};calendarTrades().forEach(t=>(o[t.trade_date]??=[]).push(t));return o;}
 function dayHtml(d,muted=false){const k=dateKey(d),arr=groupedCalendar()[k]||[],pl=arr.reduce((s,t)=>s+Number(t.pnl),0),cls=pl>0?"profit":pl<0?"loss":"";return `<button class="day ${cls} ${muted?"muted":""} ${k===dateKey(new Date())?"today":""}" data-date="${k}"><span class="num">${d.getDate()}</span>${arr.length?`<div class="trade-count">${arr.length} trade${arr.length>1?"s":""}</div><div class="day-pl">${money(pl)}</div>`:""}</button>`}
 function renderCalendar(){
+  document.querySelectorAll(".calendar-type").forEach(x=>x.classList.toggle("active",x.dataset.calendarType===activeCalendar));
+  document.querySelectorAll(".period").forEach(x=>x.classList.toggle("active",x.dataset.period===period));
   const view=new Date(viewDate),box=$("#calendarView");
   if(period==="day"){ $("#calendarLabel").textContent=view.toLocaleDateString(undefined,{month:"long",day:"numeric",year:"numeric"}); box.innerHTML=renderDay(view); return; }
   if(period==="all"){ $("#calendarLabel").textContent="All time"; box.innerHTML=renderAllYears(); return; }
@@ -113,9 +116,10 @@ function renderDay(d){const k=dateKey(d),arr=groupedCalendar()[k]||[];return `<d
 function renderYear(y){let html='<div class="months-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">';for(let m=0;m<12;m++){const total=calendarTrades().filter(t=>parseKey(t.trade_date).getFullYear()===y&&parseKey(t.trade_date).getMonth()===m).reduce((s,t)=>s+Number(t.pnl),0);html+=`<button class="card" data-month="${m}" style="padding:14px;text-align:left;color:#dce3f3;border:1px solid #222c40"><b>${new Date(y,m,1).toLocaleDateString(undefined,{month:"long"})}</b><div style="margin-top:10px" class="${total>=0?"positive":"negative"}">${money(total)}</div></button>`;}return html+"</div>";}
 function renderAllYears(){const years=[...new Set(calendarTrades().map(t=>parseKey(t.trade_date).getFullYear()))].sort((a,b)=>b-a);if(!years.length)return '<div class="empty">No trades yet. Add a trade from the calendar to start tracking.</div>';return `<div class="card" style="padding:18px"><div class="table-wrap"><table><thead><tr><th>Year</th><th>Trades</th><th>P/L</th></tr></thead><tbody>${years.map(y=>{const ts=calendarTrades().filter(t=>parseKey(t.trade_date).getFullYear()===y),pl=ts.reduce((s,t)=>s+Number(t.pnl),0);return `<tr><td>${y}</td><td>${ts.length}</td><td class="${pl>=0?"positive":"negative"}">${money(pl)}</td></tr>`}).join("")}</tbody></table></div></div>`;}
 
-function series(){const grouped=groupedOwn(),keys=Object.keys(grouped).sort(),out=[];let cum=0;for(const k of keys){const pl=grouped[k].reduce((s,t)=>s+Number(t.pnl),0);cum+=pl;out.push({k,cum,pl,trades:grouped[k].length});}return out;}
-function drawChart(){const m=$("#chartMetric").value,rows=series(),labels=rows.map(x=>parseKey(x.k).toLocaleDateString(undefined,{month:"short",day:"numeric"})),data=m==="pl"?rows.map(x=>x.cum):m==="trades"?rows.map((_,i)=>rows.slice(0,i+1).reduce((s,x)=>s+x.trades,0)):rows.map((_,i)=>{const ts=ownTrades().filter(t=>t.trade_date<=rows[i].k);return ts.length?ts.filter(t=>Number(t.pnl)>0).length/ts.length*100:0;});if(chart)chart.destroy();chart=new Chart($("#performanceChart"),{type:"line",data:{labels,datasets:[{label:m==="pl"?"Cumulative P/L":m==="trades"?"Total trades":"Win rate %",data,borderWidth:2,tension:.35,pointRadius:2}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:"#a8b2c7"}}},scales:{x:{ticks:{color:"#68738b"},grid:{color:"rgba(255,255,255,.03)"}},y:{ticks:{color:"#68738b"},grid:{color:"rgba(255,255,255,.05)"}}}}});}
-function renderAnalytics(){const s=stats(ownTrades());$("#avgTrade").textContent=s.ts.length?money(s.total/s.ts.length):"$0.00";$("#wins").textContent=s.wins.length;$("#losses").textContent=s.losses.length;$("#winsPct").textContent=`${s.winRate.toFixed(1)}% of trades`;$("#lossesPct").textContent=`${s.ts.length?(s.losses.length/s.ts.length*100).toFixed(1):0}% of trades`;$("#profitFactor").textContent=s.pf===Infinity?"∞":s.pf.toFixed(2);$("#tradeTable").innerHTML=s.ts.slice(0,12).map(t=>`<tr><td>${parseKey(t.trade_date).toLocaleDateString()}</td><td>${escapeHtml(t.reason)}</td><td class="${Number(t.pnl)>=0?"positive":"negative"}">${money(Number(t.pnl))}</td></tr>`).join("")||'<tr><td colspan="3" class="empty">No trades yet.</td></tr>';drawChart();}
+function series(type){const list=ownTrades().filter(t=>(t.trade_type||"funded")===type),grouped={};list.forEach(t=>(grouped[t.trade_date]??=[]).push(t));const keys=Object.keys(grouped).sort(),out=[];let cum=0;for(const k of keys){const pl=grouped[k].reduce((s,t)=>s+Number(t.pnl),0);cum+=pl;out.push({k,cum,pl,trades:grouped[k].length});}return {rows:out,list};}
+function drawOneChart(type,canvasId,existing){const m=$("#chartMetric").value,{rows,list}=series(type),labels=rows.map(x=>parseKey(x.k).toLocaleDateString(undefined,{month:"short",day:"numeric"})),data=m==="pl"?rows.map(x=>x.cum):m==="trades"?rows.map((_,i)=>rows.slice(0,i+1).reduce((s,x)=>s+x.trades,0)):rows.map((_,i)=>{const ts=list.filter(t=>t.trade_date<=rows[i].k);return ts.length?ts.filter(t=>Number(t.pnl)>0).length/ts.length*100:0;});if(existing)existing.destroy();return new Chart($(canvasId),{type:"line",data:{labels,datasets:[{label:m==="pl"?"Cumulative P/L":m==="trades"?"Total trades":"Win rate %",data,borderWidth:2,tension:.35,pointRadius:2}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:"#a8b2c7"}}},scales:{x:{ticks:{color:"#68738b"},grid:{color:"rgba(255,255,255,.03)"}},y:{ticks:{color:"#68738b"},grid:{color:"rgba(255,255,255,.05)"}}}}});}
+function drawChart(){paperChart=drawOneChart("paper","#paperPerformanceChart",paperChart);fundedChart=drawOneChart("funded","#fundedPerformanceChart",fundedChart);}
+function renderAnalytics(){const selected=calendarTrades(),s=stats(selected);$("#analyticsScope").textContent=activeCalendar==="paper"?"Paper Trading stats":"Funded Trades stats";$("#avgTrade").textContent=s.ts.length?money(s.total/s.ts.length):"$0.00";$("#wins").textContent=s.wins.length;$("#losses").textContent=s.losses.length;$("#winsPct").textContent=`${s.winRate.toFixed(1)}% of trades`;$("#lossesPct").textContent=`${s.ts.length?(s.losses.length/s.ts.length*100).toFixed(1):0}% of trades`;$("#profitFactor").textContent=s.pf===Infinity?"∞":s.pf.toFixed(2);$("#tradeTable").innerHTML=s.ts.slice(0,12).map(t=>`<tr><td>${parseKey(t.trade_date).toLocaleDateString()}</td><td>${escapeHtml(t.reason)}</td><td class="${Number(t.pnl)>=0?"positive":"negative"}">${money(Number(t.pnl))}</td></tr>`).join("")||'<tr><td colspan="3" class="empty">No trades yet.</td></tr>';drawChart();}
 
 async function renderFriends(){
   const incoming=friendships.filter(f=>f.addressee_id===user.id&&f.status==="pending");
@@ -175,7 +179,7 @@ $("#showLogin").onclick=()=>setAuthMode("login");
 $("#signOut").onclick=async()=>{if(supabaseClient) await supabaseClient.auth.signOut();};
 
 document.querySelectorAll(".nav-btn").forEach(b=>b.onclick=()=>setTab(b.dataset.tab));
-document.querySelectorAll(".calendar-type").forEach(b=>b.onclick=()=>{activeCalendar=b.dataset.calendarType;document.querySelectorAll(".calendar-type").forEach(x=>x.classList.toggle("active",x===b));renderCalendar();});
+document.querySelectorAll(".calendar-type").forEach(b=>b.onclick=()=>{activeCalendar=b.dataset.calendarType;try{localStorage.setItem("tradetrack-active-calendar",activeCalendar);}catch{}document.querySelectorAll(".calendar-type").forEach(x=>x.classList.toggle("active",x===b));renderCalendar();renderSummary();renderAnalytics();});
 document.querySelectorAll(".period").forEach(b=>b.onclick=()=>{period=b.dataset.period;document.querySelectorAll(".period").forEach(x=>x.classList.remove("active"));b.classList.add("active");renderCalendar();});
 $("#prevBtn").onclick=()=>{const d=new Date(viewDate);if(period==="year")d.setFullYear(d.getFullYear()-1);else if(period==="week")d.setDate(d.getDate()-7);else if(period==="day")d.setDate(d.getDate()-1);else d.setMonth(d.getMonth()-1);viewDate=d;renderCalendar();};
 $("#nextBtn").onclick=()=>{const d=new Date(viewDate);if(period==="year")d.setFullYear(d.getFullYear()+1);else if(period==="week")d.setDate(d.getDate()+7);else if(period==="day")d.setDate(d.getDate()+1);else d.setMonth(d.getMonth()+1);viewDate=d;renderCalendar();};
