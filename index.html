@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="styles.css?v=20261008-loginfix2">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
@@ -42,6 +42,10 @@
         </div>
 
         <div class="card calendar-card">
+          <div class="calendar-type-switcher" role="tablist" aria-label="Choose trading calendar">
+            <button class="calendar-type active" type="button" data-calendar-type="paper">Paper Trading</button>
+            <button class="calendar-type" type="button" data-calendar-type="funded">Funded Trades</button>
+          </div>
           <div class="calendar-toolbar">
             <div class="period-switcher">
               <button class="period active" data-period="day">1 Day</button>
@@ -130,7 +134,7 @@
       <h2 id="authMode">Welcome back</h2>
       <p class="helper">Sign in with your TradeTrack username to keep your journal synced across devices.</p>
       <form id="authForm" data-mode="login">
-        <label id="authUsernameWrap">Username<input id="authUsername" maxlength="24" autocomplete="username" required placeholder="your_username"></label>
+        <label id="authUsernameWrap" style="display:block !important; visibility:visible !important; opacity:1 !important;">Username<input id="authUsername" type="text" name="username" maxlength="24" autocomplete="username" required placeholder="Enter your username" style="display:block !important; visibility:visible !important; opacity:1 !important; width:100%;"></label>
         <label>Password<input id="authPassword" type="password" autocomplete="current-password" minlength="6" required placeholder="At least 6 characters"></label>
         <button class="primary full" id="authSubmit" type="submit">Sign in</button>
       </form>
@@ -152,6 +156,6 @@
     </div>
   </div>
 
-<script src="app.js"></script>
+<script src="app.js?v=20261008-loginfix2"></script>
 </body>
 </html>

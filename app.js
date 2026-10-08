@@ -18,6 +18,7 @@ let chart;
 let selectedDate = null;
 let viewDate = new Date();
 let period = "month";
+let activeCalendar = "paper";
 
 const $ = (s) => document.querySelector(s);
 const money = (n) => `${n < 0 ? "-" : ""}$${Math.abs(Number(n)).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}`;
@@ -43,9 +44,14 @@ function setAuthMode(mode){
   $("#authMode").textContent=signup?"Create your account":"Welcome back";
   $("#authSubmit").textContent=signup?"Create account":"Sign in";
   // Username is required on both screens, so keep it visible and enabled.
-  $("#authUsernameWrap").style.display="block";
-  $("#authUsername").required=true;
-  $("#authUsername").disabled=false;
+  const usernameWrap=$("#authUsernameWrap");
+  const usernameInput=$("#authUsername");
+  usernameWrap.style.setProperty("display","block","important");
+  usernameWrap.style.setProperty("visibility","visible","important");
+  usernameInput.style.setProperty("display","block","important");
+  usernameInput.style.setProperty("visibility","visible","important");
+  usernameInput.required=true;
+  usernameInput.disabled=false;
   $("#authPassword").autocomplete=signup?"new-password":"current-password";
   $("#authForm").dataset.mode=mode;
   authMessage("");
@@ -69,7 +75,7 @@ async function loadUser(u){
   renderAll();
 }
 async function loadTrades(){
-  const {data,error}=await supabaseClient.from("trades").select("id,user_id,trade_date,pnl,reason,created_at").order("trade_date",{ascending:false}).order("created_at",{ascending:false});
+  const {data,error}=await supabaseClient.from("trades").select("id,user_id,trade_date,pnl,reason,trade_type,created_at").order("trade_date",{ascending:false}).order("created_at",{ascending:false});
   if(error){console.error(error);return;} trades=data||[];
 }
 async function loadFriends(){
@@ -90,7 +96,9 @@ function renderSummary(){
   $("#bestDay").textContent=best?money(best.v):"$0.00"; $("#bestDayDate").textContent=best?parseKey(best.d).toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"}):"No trades yet";
 }
 function groupedOwn(){const o={};ownTrades().forEach(t=>(o[t.trade_date]??=[]).push(t));return o;}
-function dayHtml(d,muted=false){const k=dateKey(d),arr=groupedOwn()[k]||[],pl=arr.reduce((s,t)=>s+Number(t.pnl),0),cls=pl>0?"profit":pl<0?"loss":"";return `<button class="day ${cls} ${muted?"muted":""} ${k===dateKey(new Date())?"today":""}" data-date="${k}"><span class="num">${d.getDate()}</span>${arr.length?`<div class="trade-count">${arr.length} trade${arr.length>1?"s":""}</div><div class="day-pl">${money(pl)}</div>`:""}</button>`}
+function calendarTrades(){return ownTrades().filter(t=>(t.trade_type||"funded")===(activeCalendar==="paper"?"paper":"funded"));}
+function groupedCalendar(){const o={};calendarTrades().forEach(t=>(o[t.trade_date]??=[]).push(t));return o;}
+function dayHtml(d,muted=false){const k=dateKey(d),arr=groupedCalendar()[k]||[],pl=arr.reduce((s,t)=>s+Number(t.pnl),0),cls=pl>0?"profit":pl<0?"loss":"";return `<button class="day ${cls} ${muted?"muted":""} ${k===dateKey(new Date())?"today":""}" data-date="${k}"><span class="num">${d.getDate()}</span>${arr.length?`<div class="trade-count">${arr.length} trade${arr.length>1?"s":""}</div><div class="day-pl">${money(pl)}</div>`:""}</button>`}
 function renderCalendar(){
   const view=new Date(viewDate),box=$("#calendarView");
   if(period==="day"){ $("#calendarLabel").textContent=view.toLocaleDateString(undefined,{month:"long",day:"numeric",year:"numeric"}); box.innerHTML=renderDay(view); return; }
@@ -101,9 +109,9 @@ function renderCalendar(){
 }
 function renderMonth(v){let first=new Date(v.getFullYear(),v.getMonth(),1),start=new Date(first);start.setDate(1-first.getDay());let html='<div class="calendar-grid">'+["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map(x=>`<div class="weekday">${x}</div>`).join("");for(let i=0;i<42;i++){const d=new Date(start);d.setDate(start.getDate()+i);html+=dayHtml(d,d.getMonth()!==v.getMonth());}return html+"</div>";}
 function renderWeek(start){let html='<div class="calendar-grid">'+["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map(x=>`<div class="weekday">${x}</div>`).join("");for(let i=0;i<7;i++){const d=new Date(start);d.setDate(start.getDate()+i);html+=dayHtml(d);}return html+"</div>";}
-function renderDay(d){const k=dateKey(d),arr=groupedOwn()[k]||[];return `<div class="calendar-grid">${dayHtml(d)}</div><div class="day-detail card" style="margin-top:12px;padding:16px"><div class="section-head"><div><p class="eyebrow">TRADES</p><h3>${d.toLocaleDateString(undefined,{weekday:"long",month:"long",day:"numeric"})}</h3></div><button class="primary" data-add="${k}">+ Add trade</button></div>${arr.map(t=>`<div class="friend-row"><div><b>${money(Number(t.pnl))}</b><small>${escapeHtml(t.reason)}</small></div><button class="small-btn" data-delete="${t.id}">Delete</button></div>`).join("")||'<div class="empty">No trades recorded for this day.</div>'}</div>`;}
-function renderYear(y){let html='<div class="months-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">';for(let m=0;m<12;m++){const total=ownTrades().filter(t=>parseKey(t.trade_date).getFullYear()===y&&parseKey(t.trade_date).getMonth()===m).reduce((s,t)=>s+Number(t.pnl),0);html+=`<button class="card" data-month="${m}" style="padding:14px;text-align:left;color:#dce3f3;border:1px solid #222c40"><b>${new Date(y,m,1).toLocaleDateString(undefined,{month:"long"})}</b><div style="margin-top:10px" class="${total>=0?"positive":"negative"}">${money(total)}</div></button>`;}return html+"</div>";}
-function renderAllYears(){const years=[...new Set(ownTrades().map(t=>parseKey(t.trade_date).getFullYear()))].sort((a,b)=>b-a);if(!years.length)return '<div class="empty">No trades yet. Add a trade from the calendar to start tracking.</div>';return `<div class="card" style="padding:18px"><div class="table-wrap"><table><thead><tr><th>Year</th><th>Trades</th><th>P/L</th></tr></thead><tbody>${years.map(y=>{const ts=ownTrades().filter(t=>parseKey(t.trade_date).getFullYear()===y),pl=ts.reduce((s,t)=>s+Number(t.pnl),0);return `<tr><td>${y}</td><td>${ts.length}</td><td class="${pl>=0?"positive":"negative"}">${money(pl)}</td></tr>`}).join("")}</tbody></table></div></div>`;}
+function renderDay(d){const k=dateKey(d),arr=groupedCalendar()[k]||[];return `<div class="calendar-grid">${dayHtml(d)}</div><div class="day-detail card" style="margin-top:12px;padding:16px"><div class="section-head"><div><p class="eyebrow">TRADES</p><h3>${d.toLocaleDateString(undefined,{weekday:"long",month:"long",day:"numeric"})}</h3></div><button class="primary" data-add="${k}">+ Add trade</button></div>${arr.map(t=>`<div class="friend-row"><div><b>${money(Number(t.pnl))}</b><small>${escapeHtml(t.reason)}</small></div><button class="small-btn" data-delete="${t.id}">Delete</button></div>`).join("")||'<div class="empty">No trades recorded for this day.</div>'}</div>`;}
+function renderYear(y){let html='<div class="months-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">';for(let m=0;m<12;m++){const total=calendarTrades().filter(t=>parseKey(t.trade_date).getFullYear()===y&&parseKey(t.trade_date).getMonth()===m).reduce((s,t)=>s+Number(t.pnl),0);html+=`<button class="card" data-month="${m}" style="padding:14px;text-align:left;color:#dce3f3;border:1px solid #222c40"><b>${new Date(y,m,1).toLocaleDateString(undefined,{month:"long"})}</b><div style="margin-top:10px" class="${total>=0?"positive":"negative"}">${money(total)}</div></button>`;}return html+"</div>";}
+function renderAllYears(){const years=[...new Set(calendarTrades().map(t=>parseKey(t.trade_date).getFullYear()))].sort((a,b)=>b-a);if(!years.length)return '<div class="empty">No trades yet. Add a trade from the calendar to start tracking.</div>';return `<div class="card" style="padding:18px"><div class="table-wrap"><table><thead><tr><th>Year</th><th>Trades</th><th>P/L</th></tr></thead><tbody>${years.map(y=>{const ts=calendarTrades().filter(t=>parseKey(t.trade_date).getFullYear()===y),pl=ts.reduce((s,t)=>s+Number(t.pnl),0);return `<tr><td>${y}</td><td>${ts.length}</td><td class="${pl>=0?"positive":"negative"}">${money(pl)}</td></tr>`}).join("")}</tbody></table></div></div>`;}
 
 function series(){const grouped=groupedOwn(),keys=Object.keys(grouped).sort(),out=[];let cum=0;for(const k of keys){const pl=grouped[k].reduce((s,t)=>s+Number(t.pnl),0);cum+=pl;out.push({k,cum,pl,trades:grouped[k].length});}return out;}
 function drawChart(){const m=$("#chartMetric").value,rows=series(),labels=rows.map(x=>parseKey(x.k).toLocaleDateString(undefined,{month:"short",day:"numeric"})),data=m==="pl"?rows.map(x=>x.cum):m==="trades"?rows.map((_,i)=>rows.slice(0,i+1).reduce((s,x)=>s+x.trades,0)):rows.map((_,i)=>{const ts=ownTrades().filter(t=>t.trade_date<=rows[i].k);return ts.length?ts.filter(t=>Number(t.pnl)>0).length/ts.length*100:0;});if(chart)chart.destroy();chart=new Chart($("#performanceChart"),{type:"line",data:{labels,datasets:[{label:m==="pl"?"Cumulative P/L":m==="trades"?"Total trades":"Win rate %",data,borderWidth:2,tension:.35,pointRadius:2}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:"#a8b2c7"}}},scales:{x:{ticks:{color:"#68738b"},grid:{color:"rgba(255,255,255,.03)"}},y:{ticks:{color:"#68738b"},grid:{color:"rgba(255,255,255,.05)"}}}}});}
@@ -127,7 +135,7 @@ function showFriendPerformance(friendId){
   const s=stats(list);$("#performanceTitle").textContent=`@${p.username}`;$("#friendPL").textContent=money(s.total);$("#friendWR").textContent=`${s.winRate.toFixed(1)}%`;$("#friendTrades").textContent=s.ts.length;$("#performanceModal").classList.add("show");
 }
 
-async function saveTrade(){const pnl=Number($("#plInput").value),reason=$("#reasonInput").value.trim();if(!Number.isFinite(pnl)||!reason)return;const {error}=await supabaseClient.from("trades").insert({user_id:user.id,trade_date:selectedDate,pnl,reason});if(error){alert(error.message);return;}$("#tradeModal").classList.remove("show");await loadTrades();renderAll();}
+async function saveTrade(){const pnl=Number($("#plInput").value),reason=$("#reasonInput").value.trim();if(!Number.isFinite(pnl)||!reason)return;const {error}=await supabaseClient.from("trades").insert({user_id:user.id,trade_date:selectedDate,pnl,reason,trade_type:activeCalendar==="paper"?"paper":"funded"});if(error){alert(error.message);return;}$("#tradeModal").classList.remove("show");await loadTrades();renderAll();}
 async function deleteTrade(id){if(!confirm("Delete this trade?"))return;const {error}=await supabaseClient.from("trades").delete().eq("id",id);if(error){alert(error.message);return;}await loadTrades();renderAll();}
 
 function setTab(tab){document.querySelectorAll(".nav-btn").forEach(b=>b.classList.toggle("active",b.dataset.tab===tab));document.querySelectorAll(".tab-panel").forEach(p=>p.classList.remove("active"));$("#"+tab+"Tab").classList.add("active");$("#pageTitle").textContent=tab[0].toUpperCase()+tab.slice(1);if(tab==="analytics")renderAnalytics();if(tab==="friends"){loadFriends().then(renderFriends);}}
@@ -167,6 +175,7 @@ $("#showLogin").onclick=()=>setAuthMode("login");
 $("#signOut").onclick=async()=>{if(supabaseClient) await supabaseClient.auth.signOut();};
 
 document.querySelectorAll(".nav-btn").forEach(b=>b.onclick=()=>setTab(b.dataset.tab));
+document.querySelectorAll(".calendar-type").forEach(b=>b.onclick=()=>{activeCalendar=b.dataset.calendarType;document.querySelectorAll(".calendar-type").forEach(x=>x.classList.toggle("active",x===b));renderCalendar();});
 document.querySelectorAll(".period").forEach(b=>b.onclick=()=>{period=b.dataset.period;document.querySelectorAll(".period").forEach(x=>x.classList.remove("active"));b.classList.add("active");renderCalendar();});
 $("#prevBtn").onclick=()=>{const d=new Date(viewDate);if(period==="year")d.setFullYear(d.getFullYear()-1);else if(period==="week")d.setDate(d.getDate()-7);else if(period==="day")d.setDate(d.getDate()-1);else d.setMonth(d.getMonth()-1);viewDate=d;renderCalendar();};
 $("#nextBtn").onclick=()=>{const d=new Date(viewDate);if(period==="year")d.setFullYear(d.getFullYear()+1);else if(period==="week")d.setDate(d.getDate()+7);else if(period==="day")d.setDate(d.getDate()+1);else d.setMonth(d.getMonth()+1);viewDate=d;renderCalendar();};
