@@ -18,7 +18,7 @@ let chart;
 let selectedDate = null;
 let viewDate = new Date();
 let period = "month";
-let activeCalendar = "paper";
+let activeCalendar = "funded";
 
 const $ = (s) => document.querySelector(s);
 const money = (n) => `${n < 0 ? "-" : ""}$${Math.abs(Number(n)).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}`;
